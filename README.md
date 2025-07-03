@@ -1,6 +1,6 @@
-# binary-binary_search
+# binary-search
 
-A general binary search implementation that finds the transition point where a predicate switches from `false` to `true`.
+A generic binary search implementation that finds the transition point where a predicate switches from `false` to `true` over `core::ops` implementations.
 
 ## Overview
 
@@ -19,8 +19,8 @@ fn main() {
     
     // highest_false will be Some(2) (index of value 5)
     // lowest_true will be Some(3) (index of value 6)
-    println!("Highest false: {:?}", highest_false);
-    println!("Lowest true: {:?}", lowest_true);
+    eprintln!("Highest false: {:?}", highest_false);
+    eprintln!("Lowest true: {:?}", lowest_true);
 }
 ```
 
@@ -44,8 +44,8 @@ fn main() {
     
     // highest_false will be Some(22)
     // lowest_true will be Some(23)
-    println!("Highest false: {:?}", highest_false);
-    println!("Lowest true: {:?}", lowest_true);
+    eprintln!("Highest false: {:?}", highest_false);
+    eprintln!("Lowest true: {:?}", lowest_true);
 }
 ```
 
@@ -60,14 +60,14 @@ fn main() {
     
     // highest_false will be Some(7)
     // lowest_true will be Some(8)
-    println!("Highest false: {:?}", highest_false);
-    println!("Lowest true: {:?}", lowest_true);
+    eprintln!("Highest false: {:?}", highest_false);
+    eprintln!("Lowest true: {:?}", lowest_true);
 }
 ```
 
 ## Fallible Predicates
 
-For predicates that may fail, you can use `binary_search_with_fallible_predicate` which accepts a predicate that returns a `Result`:
+For predicates that may fail, you can use `binary_search_fallible` which accepts a predicate that returns a `Result`:
 
 ```rust
 fn main() -> Result<(), String> {
@@ -79,9 +79,9 @@ fn main() -> Result<(), String> {
         Ok(*x >= 10)
     };
     
-    let result = binary_search_with_fallible_predicate(fallible_predicate, 0, 20)?;
+    let result = binary_search_fallible(fallible_predicate, 0, 20)?;
     
-    println!("Result: {:?}", result);
+    eprintln!("Result: {:?}", result);
     Ok(())
 }
 ```
@@ -92,3 +92,9 @@ For the binary search to work correctly:
 
 1. The predicate must be "monotonic". That is, if the predicate returns true for some value `x`, it must return true for any value `y` if `y >= x`.
 2. The range must be ascending (i.e. l < r). It is actually OK to reverse the order, but then the predicate must be monotonic in the opposite direction.
+
+
+## Inspirations
+
+- https://github.com/dfinity/ic/blob/master/rs/nervous_system/common/src/binary_search.rs
+- https://github.com/danielwaterworth/binary-search

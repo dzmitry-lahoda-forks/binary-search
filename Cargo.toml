@@ -1,14 +1,14 @@
 [package]
 name = "binary-search"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Daniel Waterworth <me@danielwaterworth.com>"]
 edition = "2024"
 license = "MIT"
-description = "General binary search implementation"
+description = "Generic binary search implementation"
 readme = "README.md"
 repository = "https://github.com/danielwaterworth/binary-search"
 
 [dependencies]
 
 [dev-dependencies]
-proptest ={ version = "*" }
+proptest = { version = "1.7" }
