@@ -1,6 +1,8 @@
 # binary-search
 
-A generic binary search implementation that finds the transition point where a predicate switches from `false` to `true` over `core::ops` implementations.
+A generic binary search implementation that finds the transition point where a predicate switches from `false` to `true` over `core` traits implementations.
+
+Correctness, soundenss and panic safety are priority over performance. 
 
 ## Overview
 
@@ -15,7 +17,7 @@ fn main() {
     // Find where values become >= 6
     let predicate = |&i: &usize| values[i] >= 6;
     
-    let (highest_false, lowest_true) = binary_search(predicate, 0, values.len() - 1);
+    let (lowest_true, highest_false) = binary_search(predicate, 0, values.len() - 1);
     
     // highest_false will be Some(2) (index of value 5)
     // lowest_true will be Some(3) (index of value 6)
@@ -29,8 +31,8 @@ fn main() {
 The `binary_search` function returns a tuple of `(Option<T>, Option<T>)` with the following meanings:
 
 - If the predicate switches from false to true within the input range, it returns `(Some(l), Some(r))` where `l` is the highest value where the predicate is false and `r` is the lowest value where the predicate is true.
-- If the predicate is always true in the range, it returns `(None, Some(l))` where `l` is the bottom of the range.
-- If the predicate is always false in the range, it returns `(Some(r), None)` where `r` is the top of the range.
+- If the predicate is always true in the range, it returns `(Some(l), None)` where `l` is the bottom of the range.
+- If the predicate is always false in the range, it returns `(None, Some(r))` where `r` is the top of the range.
 - If the predicate is not monotonic (violates the preconditions), it may return `(None, None)` or an incorrect result.
 
 ## Example: Finding a Numeric Threshold
@@ -40,7 +42,7 @@ fn main() {
     // Find where numbers become >= 23
     let predicate = |x: &usize| *x >= 23;
     
-    let (highest_false, lowest_true) = binary_search(predicate, 1, 100);
+    let (lowest_true, highest_false) = binary_search(predicate, 1, 100);
     
     // highest_false will be Some(22)
     // lowest_true will be Some(23)
@@ -56,7 +58,7 @@ fn main() {
     // Find the cube root of 512 (which is 8)
     let predicate = |x: &u64| x.pow(3) >= 512;
     
-    let (highest_false, lowest_true) = binary_search(predicate, 0, 20);
+    let (lowest_true, highest_false) = binary_search(predicate, 0, 20);
     
     // highest_false will be Some(7)
     // lowest_true will be Some(8)
