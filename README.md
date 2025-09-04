@@ -6,34 +6,49 @@ Correctness, soundenss and panic safety are priority over performance.
 
 ## Overview
 
-This library provides a binary search algorithm that finds a pair of values `(l, r)` that bracket the point where a predicate switches from `false` to `true`. Specifically, `predicate(l)` will be `false` and `predicate(r)` will be `true`.
+This library provides a binary search algorithm that returns a `Mid<T>` describing the relationship of the search range to the transition point where a predicate switches from `false` to `true`:
+
+- `Mid::Switches { l, r }`: the predicate switches within the range, with `predicate(l) == false`, `predicate(r) == true`, and `l < r`.
+- `Mid::True { l }`: the predicate is always true; `l` is the bottom of the range.
+- `Mid::False { r }`: the predicate is always false; `r` is the top of the range.
+- `Mid::NonMonotonic`: detected a violation of the monotonicity precondition or invalid inputs.
 
 ## Usage
 
 ```rust
 fn main() {
     let values = [0, 4, 5, 6, 7, 9, 456];
-    
+
     // Find where values become >= 6
     let predicate = |&i: &usize| values[i] >= 6;
-    
-    let (lowest_true, highest_false) = binary_search(predicate, 0, values.len() - 1);
-    
-    // highest_false will be Some(2) (index of value 5)
-    // lowest_true will be Some(3) (index of value 6)
-    eprintln!("Highest false: {:?}", highest_false);
-    eprintln!("Lowest true: {:?}", lowest_true);
+
+    match binary_search(predicate, 0, values.len() - 1) {
+        Mid::Switches { l, r } => {
+            // l == 2 (index of 5), r == 3 (index of 6)
+            eprintln!("highest false index: {}", l);
+            eprintln!("lowest true index: {}", r);
+        }
+        Mid::True { l } => {
+            eprintln!("always true; bottom of range: {}", l);
+        }
+        Mid::False { r } => {
+            eprintln!("always false; top of range: {}", r);
+        }
+        Mid::NonMonotonic => {
+            eprintln!("predicate not monotonic over range");
+        }
+    }
 }
 ```
 
 ## Return Values
 
-The `binary_search` function returns a tuple of `(Option<T>, Option<T>)` with the following meanings:
+`binary_search` returns a `Mid<T>`:
 
-- If the predicate switches from false to true within the input range, it returns `(Some(l), Some(r))` where `l` is the highest value where the predicate is false and `r` is the lowest value where the predicate is true.
-- If the predicate is always true in the range, it returns `(Some(l), None)` where `l` is the bottom of the range.
-- If the predicate is always false in the range, it returns `(None, Some(r))` where `r` is the top of the range.
-- If the predicate is not monotonic (violates the preconditions), it may return `(None, None)` or an incorrect result.
+- `Mid::Switches { l, r }`: brackets the transition (`p(l) == false`, `p(r) == true`).
+- `Mid::True { l }`: predicate is always true; `l` is the bottom of the range.
+- `Mid::False { r }`: predicate is always false; `r` is the top of the range.
+- `Mid::NonMonotonic`: precondition (monotonicity) was violated or inputs were invalid.
 
 ## Example: Finding a Numeric Threshold
 
@@ -41,13 +56,15 @@ The `binary_search` function returns a tuple of `(Option<T>, Option<T>)` with th
 fn main() {
     // Find where numbers become >= 23
     let predicate = |x: &usize| *x >= 23;
-    
-    let (lowest_true, highest_false) = binary_search(predicate, 1, 100);
-    
-    // highest_false will be Some(22)
-    // lowest_true will be Some(23)
-    eprintln!("Highest false: {:?}", highest_false);
-    eprintln!("Lowest true: {:?}", lowest_true);
+
+    match binary_search(predicate, 1, 100) {
+        Mid::Switches { l, r } => {
+            // l == 22, r == 23
+            eprintln!("highest false: {}", l);
+            eprintln!("lowest true: {}", r);
+        }
+        _ => unreachable!("predicate switches in this range"),
+    }
 }
 ```
 
@@ -57,13 +74,15 @@ fn main() {
 fn main() {
     // Find the cube root of 512 (which is 8)
     let predicate = |x: &u64| x.pow(3) >= 512;
-    
-    let (lowest_true, highest_false) = binary_search(predicate, 0, 20);
-    
-    // highest_false will be Some(7)
-    // lowest_true will be Some(8)
-    eprintln!("Highest false: {:?}", highest_false);
-    eprintln!("Lowest true: {:?}", lowest_true);
+
+    match binary_search(predicate, 0, 20) {
+        Mid::Switches { l, r } => {
+            // l == 7, r == 8
+            eprintln!("highest false: {}", l);
+            eprintln!("lowest true: {}", r);
+        }
+        _ => unreachable!("predicate switches in this range"),
+    }
 }
 ```
 
@@ -80,10 +99,16 @@ fn main() -> Result<(), String> {
         }
         Ok(*x >= 10)
     };
-    
-    let result = binary_search_fallible(fallible_predicate, 0, 20)?;
-    
-    eprintln!("Result: {:?}", result);
+
+    match binary_search_fallible(fallible_predicate, 0, 20)? {
+        Mid::Switches { l, r } => {
+            eprintln!("highest false: {} / lowest true: {}", l, r);
+        }
+        Mid::True { l } => eprintln!("always true from {}", l),
+        Mid::False { r } => eprintln!("always false until {}", r),
+        Mid::NonMonotonic => eprintln!("non monotonic or invalid range"),
+    }
+
     Ok(())
 }
 ```

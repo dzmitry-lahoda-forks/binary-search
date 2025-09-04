@@ -14,8 +14,8 @@ use core::{
 /// # Performance
 ///
 /// Ensures orders of inputs and ensures there is middle number not equal to either of the inputs.
-/// 
-/// Other than that it is fast.
+///
+/// Other than that it is fast as https://docs.rs/num-integer/latest/src/num_integer/average.rs.html#45
 ///
 /// # Safety
 ///
@@ -44,9 +44,32 @@ where
     }
 }
 
-/// Performs a binary search to find a pair of values `(l, r)` that bracket the
-/// point where a predicate `p` switches from `False` to `True`. Specifically,
-/// `p(l)` will be `False` and `p(r)` will be `True`.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Mid<T> {
+    /// - If the predicate is not monotonic, the function may return an incorrect
+    ///   result, or return this.    
+    NonMonotonic,
+    /// - If the predicate is monotonic and always true, the function will return
+    ///   this where `l` is the bottom of the range
+    True { l: T },
+
+    /// - If the predicate is monotonic and switches from false to true within the
+    ///   input range, the function will return this, where `l` is the
+    ///   highest value where the `predicate` is false and `r`` is the lowest value where
+    ///   the predicate is true.
+    Switches { l: T, r: T },
+
+    /// - If the predicate is monotonic and always false, the function will return
+    ///   this where `r` is the top of the range.
+    False { r: T },
+}
+
+/// Performs a binary search to find the point where a predicate `p` switches
+/// from `false` to `true`. Returns a [`Mid`] describing the outcome:
+/// - [`Mid::Switches { l, r }`]: `p(l)` is `false` and `p(r)` is `true`, and `l < r`.
+/// - [`Mid::True { l }`]: the predicate is always true in the given range; `l` is the bottom of the range.
+/// - [`Mid::False { r }`]: the predicate is always false in the given range; `r` is the top of the range.
+/// - [`Mid::NonMonotonic`]: detected violation of monotonicity or invalid inputs.
 ///
 /// The function takes a range and a predicate.
 /// Preconditions:
@@ -58,19 +81,8 @@ where
 ///   direction (i.e. once it returns false for `x` it must return false for any
 ///   value `y` if `y >= x`)
 ///
-/// Returns:
-/// - If the predicate is not monotonic, the function may return an incorrect
-///   result, or return `(None, None)`.
-/// - If the predicate is monotonic and switches from false to true within the
-///   input range, the function will return `(Some(l), Some(r))` where `l` is the
-///   highest value where the `predicate` is false and `r`` is the lowest value where
-///   the predicate is true.
-/// - If the predicate is monotonic and always true, the function will return
-///   `(Some(l), None)` where `l` is the bottom of the range.
-/// - If the predicate is monotonic and always false, the function will return
-///   `(None, Some(r))` where `r` is the top of the range.
 #[inline]
-pub fn binary_search<T, G>(predicate: G, l: T, r: T) -> (Option<T>, Option<T>)
+pub fn binary_search<T, G>(predicate: G, l: T, r: T) -> Mid<T>
 where
     T: Add<Output = T>
         + Sub<Output = T>
@@ -95,7 +107,7 @@ pub fn binary_search_fallible<T, G, E>(
     predicate: G,
     mut l: T,
     mut r: T,
-) -> Result<(Option<T>, Option<T>), E>
+) -> Result<Mid<T>, E>
 where
     T: Add<Output = T>
         + Sub<Output = T>
@@ -112,24 +124,24 @@ where
         (false, true) => {}
         // Check if the predicate is "always true" or "always false" and return
         // early if so.
-        (true, true) => return Ok((Some(l), None)),
-        (false, false) => return Ok((None, Some(r))),
+        (true, true) => return Ok(Mid::True { l }),
+        (false, false) => return Ok(Mid::False { r }),
         // Sanity check that will detect some non-monotonic functions. This is a
-        // precondition violation, so we return (None, None).
-        (true, false) => return Ok((None, None)),
+        // precondition violation.
+        (true, false) => return Ok(Mid::NonMonotonic),
     }
     loop {
         // Sanity check: f must be false for l and true for r, otherwise
         // the input function was not monotonic
         if predicate(&l)? {
-            return Ok((None, None));
+            return Ok(Mid::NonMonotonic);
         }
         if !predicate(&r)? {
-            return Ok((None, None));
+            return Ok(Mid::NonMonotonic);
         }
 
         match mid_copy(l, r) {
-            None => return Ok((Some(l), Some(r))),
+            None => return Ok(Mid::Switches { l, r }),
             Some(m) => {
                 if predicate(&m)? {
                     r = m;
@@ -190,7 +202,7 @@ mod tests {
         let predicate = |x: &u64| *x >= 5;
 
         let result = binary_search(predicate, 0, u64::MAX);
-        assert_eq!(result, (Some(4), Some(5)));
+        assert_eq!(result, Mid::Switches { l: 4, r: 5 });
     }
 
     #[test]
@@ -198,10 +210,10 @@ mod tests {
         let predicate = |x: &u64| *x >= 5;
 
         let result = binary_search(predicate, 6, 10);
-        assert_eq!(result, (Some(6), None,));
+        assert_eq!(result, Mid::True { l: 6 });
 
         let result = binary_search(predicate, 0, 4);
-        assert_eq!(result, (None, Some(4)));
+        assert_eq!(result, Mid::False { r: 4 });
     }
 
     #[test]
@@ -209,41 +221,45 @@ mod tests {
         let predicate = |x: &u64| x.pow(3) >= 512;
 
         let result = binary_search(predicate, 0, 20);
-        assert_eq!(result, (Some(7), Some(8)));
+        assert_eq!(result, Mid::Switches { l: 7, r: 8 });
     }
 
     #[test]
     fn search_usize() {
         let result = binary_search(|x: &usize| *x >= 23, 1, 100);
-        assert_eq!(result, (Some(22), Some(23)));
+        assert_eq!(result, Mid::Switches { l: 22, r: 23 });
     }
 
     proptest! {
         #[test]
         fn search_properties(start in 0u64..25_000_000, pivot in 0u64..100_000_000, end in 25_000_001u64..100_000_000) {
             let predicate = |x: &u64| *x >= pivot;
-            let (lowest_true, highest_false) = binary_search(predicate, start, end);
+            let result = binary_search(predicate, start, end);
 
-            prop_assert!(highest_false.is_some() || lowest_true.is_some());
+            match result {
+                Mid::Switches { l, r } => {
+                    // Check that f is false for l and true for r
+                    prop_assert!(!predicate(&l));
+                    prop_assert!(predicate(&r));
 
-            // Verify that search returned some result
-            if highest_false.is_none() {
-                prop_assert!(predicate(&start));
-            }
-            if lowest_true.is_none() {
-                prop_assert!(!predicate(&end));
-            }
+                    // Ensure that l and r are in ascending order
+                    prop_assert!(l < r);
 
-            if let (Some(l), Some(r)) = (lowest_true, highest_false) {
-                // Check that f is false for l and true for r
-                prop_assert!(!predicate(&l));
-                prop_assert!(predicate(&r));
-
-                // Ensure that l and r are in ascending order
-                prop_assert!(l < r);
-
-                // Validate the monotonicity of the predicate
-                prop_assert!(predicate(&(l + 1)));
+                    // Validate the monotonicity of the predicate
+                    prop_assert!(predicate(&(l + 1)));
+                }
+                Mid::True { .. } => {
+                    // Always true across the range
+                    prop_assert!(predicate(&start));
+                }
+                Mid::False { .. } => {
+                    // Always false across the range
+                    prop_assert!(!predicate(&end));
+                }
+                Mid::NonMonotonic => {
+                    // For a monotonic predicate, this should not happen
+                    prop_assert!(false, "NonMonotonic for monotonic predicate");
+                }
             }
         }
     }
